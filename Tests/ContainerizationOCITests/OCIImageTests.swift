@@ -38,6 +38,26 @@ struct OCITests {
         #expect(image.rootfs.type == "foo")
     }
 
+    @Test func configDecodesVolumesAndExposedPorts() throws {
+        let json = """
+            {"Env":["PGDATA=/var/lib/postgresql/18/docker"],"Volumes":{"/var/lib/postgresql":{}},"ExposedPorts":{"5432/tcp":{}},"StopSignal":"SIGINT"}
+            """
+        let config = try JSONDecoder().decode(ContainerizationOCI.ImageConfig.self, from: Data(json.utf8))
+        #expect(config.volumes?.keys.sorted() == ["/var/lib/postgresql"])
+        #expect(config.exposedPorts?.keys.sorted() == ["5432/tcp"])
+        #expect(config.stopSignal == "SIGINT")
+
+        let reencoded = try JSONDecoder().decode(ContainerizationOCI.ImageConfig.self, from: JSONEncoder().encode(config))
+        #expect(reencoded.volumes?.keys.sorted() == ["/var/lib/postgresql"])
+        #expect(reencoded.exposedPorts?.keys.sorted() == ["5432/tcp"])
+    }
+
+    @Test func configWithoutVolumesOrExposedPortsDecodesAsNil() throws {
+        let config = try JSONDecoder().decode(ContainerizationOCI.ImageConfig.self, from: Data(#"{"Cmd":["sh"]}"#.utf8))
+        #expect(config.volumes == nil)
+        #expect(config.exposedPorts == nil)
+    }
+
     @Test func descriptor() {
         let platform = ContainerizationOCI.Platform(arch: "arm64", os: "linux")
         let descriptor = ContainerizationOCI.Descriptor(mediaType: MediaTypes.descriptor, digest: "123", size: 0, platform: platform)

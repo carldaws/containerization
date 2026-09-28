@@ -28,6 +28,8 @@ public struct ImageConfig: Codable, Sendable {
         case workingDir = "WorkingDir"
         case labels = "Labels"
         case stopSignal = "StopSignal"
+        case volumes = "Volumes"
+        case exposedPorts = "ExposedPorts"
     }
 
     /// user defines the username or UID which the process in the container should run as.
@@ -51,9 +53,16 @@ public struct ImageConfig: Codable, Sendable {
     /// stopSignal contains the system call signal that will be sent to the container to exit.
     public let stopSignal: String?
 
+    /// volumes is a set of directories describing where the process is likely to write data specific to a container instance.
+    public let volumes: [String: EmptyObject]?
+
+    /// exposedPorts is a set of ports to expose from a container running this image, keyed by `port/protocol`.
+    public let exposedPorts: [String: EmptyObject]?
+
     public init(
         user: String? = nil, env: [String]? = nil, entrypoint: [String]? = nil, cmd: [String]? = nil,
-        workingDir: String? = nil, labels: [String: String]? = nil, stopSignal: String? = nil
+        workingDir: String? = nil, labels: [String: String]? = nil, stopSignal: String? = nil,
+        volumes: [String: EmptyObject]? = nil, exposedPorts: [String: EmptyObject]? = nil
     ) {
         self.user = user
         self.env = env
@@ -62,7 +71,14 @@ public struct ImageConfig: Codable, Sendable {
         self.workingDir = workingDir
         self.labels = labels
         self.stopSignal = stopSignal
+        self.volumes = volumes
+        self.exposedPorts = exposedPorts
     }
+}
+
+/// EmptyObject is the `{}` value of the set-like maps in an image config, such as `Volumes` and `ExposedPorts`.
+public struct EmptyObject: Codable, Sendable, Equatable {
+    public init() {}
 }
 
 /// RootFS describes a layer content addresses
