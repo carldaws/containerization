@@ -209,6 +209,24 @@ public struct VmnetNetwork: Network {
         )
     }
 
+    /// Returns a new interface for use with a container, with a fixed MAC
+    /// address when one is given. A container that keeps its MAC address
+    /// across restarts keeps its neighbours' ARP entries valid.
+    /// - Parameters:
+    ///   - id: The container ID.
+    ///   - macAddress: The MAC address for the interface, or `nil` for a random one.
+    public mutating func createInterface(_ id: String, macAddress: MACAddress?) throws -> Containerization.Interface? {
+        let (v4, v6) = try allocator.allocate(id)
+        return Self.Interface(
+            reference: self.reference,
+            ipv4Address: v4,
+            ipv4Gateway: self.ipv4Gateway,
+            ipv6Address: v6,
+            ipv6Gateway: self.ipv6Gateway,
+            macAddress: macAddress
+        )
+    }
+
     /// Returns a new interface for use with a container with a custom MTU.
     /// - Parameters:
     ///   - id: The container ID.
