@@ -76,4 +76,21 @@ struct Ext4FormatLinkTests {
 
         #expect(try EXT4.EXT4Reader(blockDevice: path).superBlock.freeInodesCount == EXT4.EXT4Reader(blockDevice: emptyPath).superBlock.freeInodesCount)
     }
+
+    @Test func unlinkLostAndFoundFreesInode() throws {
+        let emptyPath = FilePath(FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: false))
+        defer { try? FileManager.default.removeItem(at: emptyPath.url) }
+        try EXT4.Formatter(emptyPath, minDiskSize: 32.kib()).close()
+
+        let path = FilePath(FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: false))
+        defer { try? FileManager.default.removeItem(at: path.url) }
+        let fmt = try EXT4.Formatter(path, minDiskSize: 32.kib())
+        try fmt.unlink(path: FilePath("/lost+found"))
+        try fmt.close()
+
+        let reader = try EXT4.EXT4Reader(blockDevice: path)
+        #expect(!reader.exists(FilePath("/lost+found")))
+        #expect(try reader.getInode(number: EXT4.LostAndFoundInode).linksCount == 0)
+        #expect(try reader.superBlock.freeInodesCount == EXT4.EXT4Reader(blockDevice: emptyPath).superBlock.freeInodesCount + 1)
+    }
 }

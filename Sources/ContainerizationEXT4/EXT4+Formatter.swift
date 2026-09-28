@@ -241,8 +241,7 @@ extension EXT4 {
         private func _unlink(parentNodePtr: Ptr<FileTree.FileTreeNode>, pathNodePtr: Ptr<FileTree.FileTreeNode>) throws {
             let pathNode = pathNodePtr.pointee
             let pathComponent = pathNode.name
-            let inodeNumber = Int(pathNode.inode) - 1
-            let pathInodePtr = self.inodes[inodeNumber]
+            let pathInodePtr = self.inodes[Int(pathNode.inode) - 1]
             var pathInode = pathInodePtr.pointee
 
             let parentNode = parentNodePtr.pointee
@@ -269,8 +268,7 @@ extension EXT4 {
                 return
             }
 
-            guard inodeNumber >= FirstInode else {
-                // Free the inodes and the blocks related to the inode only if its valid
+            guard pathNode.inode >= EXT4.FirstInode else {
                 return
             }
             if let blocks = pathNode.blocks {
