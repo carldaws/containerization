@@ -260,3 +260,27 @@ struct Ext4FormatEmptyRangeTests {
         try formatter.close()
     }
 }
+
+struct Ext4FormatLostAndFoundTests {
+    private let fsPath = FilePath(
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: false))
+
+    @Test func createsLostAndFoundByDefault() throws {
+        defer { try? FileManager.default.removeItem(at: fsPath.url) }
+        try EXT4.Formatter(fsPath, minDiskSize: 32.kib()).close()
+        let reader = try EXT4.EXT4Reader(blockDevice: fsPath)
+        #expect(try reader.listDirectory(FilePath("/")) == ["lost+found"])
+        #expect(try reader.stat(FilePath("/lost+found")).inodeNumber == EXT4.LostAndFoundInode)
+        #expect(reader.superBlock.lpfInode == EXT4.LostAndFoundInode)
+    }
+
+    @Test func formatsWithoutLostAndFound() throws {
+        defer { try? FileManager.default.removeItem(at: fsPath.url) }
+        try EXT4.Formatter(fsPath, minDiskSize: 32.kib(), lostAndFound: false).close()
+        let reader = try EXT4.EXT4Reader(blockDevice: fsPath)
+        #expect(try reader.listDirectory(FilePath("/")).isEmpty)
+        #expect(try reader.getInode(number: EXT4.FirstInode).linksCount == 0)
+        #expect(reader.superBlock.lpfInode == 0)
+    }
+}

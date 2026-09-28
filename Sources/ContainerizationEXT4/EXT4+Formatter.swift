@@ -68,6 +68,7 @@ extension EXT4 {
         ///   - minDiskSize: The minimum usable capacity for the filesystem. When a journal is
         ///     configured, the actual image size will be larger than this value by the journal size.
         ///   - journal: The JBD2 journal size and mode, or nil for an unjournalled filesystem.
+        ///   - lostAndFound: Whether to create `/lost+found`, which e2fsck expects to find.
         ///
         /// - Note: This ext4 formatter is designed for creating block devices out of container images and does not support all the
         ///         features and options available in the full ext4 filesystem implementation. It focuses
@@ -75,7 +76,7 @@ extension EXT4 {
         ///
         /// - Important: Ensure that the destination block device is accessible and has sufficient permissions
         ///              for formatting. The formatting process will erase all existing data on the device.
-        public init(_ devicePath: FilePath, blockSize: UInt32 = 4096, minDiskSize: UInt64 = 256.kib(), journal: JournalConfig? = nil) throws {
+        public init(_ devicePath: FilePath, blockSize: UInt32 = 4096, minDiskSize: UInt64 = 256.kib(), journal: JournalConfig? = nil, lostAndFound: Bool = true) throws {
             /// The constructor performs the following steps:
             ///
             /// 1. Creates the first 10 inodes:
@@ -90,8 +91,8 @@ extension EXT4 {
             /// 4. Moves the file descriptor to the start of the block where file metadata and data can be
             ///    written, which is located past the filesystem superblocks and group descriptor blocks.
             ///
-            /// 5. Creates a "/lost+found" directory to satisfy the requirements of e2fsck (ext2/3/4 filesystem
-            ///    checker).
+            /// 5. Creates a "/lost+found" directory, unless `lostAndFound` is false, to satisfy the requirements
+            ///    of e2fsck (ext2/3/4 filesystem checker).
 
             guard blockSize >= 1024 && blockSize <= 4096 && blockSize.nonzeroBitCount == 1 else {
                 throw Error.invalidBlockSize(blockSize)
@@ -132,8 +133,9 @@ extension EXT4 {
             self.journalConfig = journal
             // skip past the superblock and block descriptor table
             try self.seek(block: self.groupDescriptorBlocks + 1)
-            // lost+found directory is required for e2fsck to pass
-            try self.create(path: FilePath("/lost+found"), mode: Inode.Mode(.S_IFDIR, 0o700))
+            if lostAndFound {
+                try self.create(path: FilePath("/lost+found"), mode: Inode.Mode(.S_IFDIR, 0o700))
+            }
         }
 
         // Creates a hard link at the path specified by `link` that points to the same file or directory as the path specified by `target`.
@@ -925,7 +927,7 @@ extension EXT4 {
             superblock.creatorOS = 3  // freeBSD
             superblock.revisionLevel = 1  // dynamic inode sizes
             superblock.firstInode = EXT4.FirstInode
-            superblock.lpfInode = EXT4.LostAndFoundInode
+            superblock.lpfInode = self.tree.lookup(path: FilePath("/lost+found"))?.pointee.inode ?? 0
             superblock.inodeSize = UInt16(EXT4.InodeSize)
             superblock.featureIncompat =
                 IncompatFeature.filetype | IncompatFeature.extents | IncompatFeature.flexBg
