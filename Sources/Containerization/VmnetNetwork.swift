@@ -19,7 +19,6 @@
 import ContainerizationError
 import ContainerizationExtras
 import Virtualization
-import os
 import vmnet
 
 /// A network backed by vmnet on macOS.
@@ -28,7 +27,6 @@ public struct VmnetNetwork: Network {
     private var allocator: Allocator
     // `reference` isn't used concurrently.
     nonisolated(unsafe) private let reference: vmnet_network_ref
-    nonisolated(unsafe) private var hostBridge: interface_ref?
 
     /// The IPv4 subnet of this network.
     public let subnet: CIDRv4
@@ -262,36 +260,6 @@ public struct VmnetNetwork: Network {
     /// - Parameter id: The container ID.
     public mutating func releaseInterface(_ id: String) throws {
         try allocator.release(id)
-    }
-
-    /// Keeps the network's bridge on the host for the rest of the process's life.
-    ///
-    /// vmnet creates a network's host bridge when its first interface starts and
-    /// removes it when its last one stops. When the network starts again, it takes
-    /// back the bridge it had before, even from another network using it by then,
-    /// whose containers lose their gateway. Holding an interface of its own keeps
-    /// this network's bridge in place.
-    public mutating func keepHostBridge() async throws {
-        guard hostBridge == nil else {
-            return
-        }
-        var interface: interface_ref?
-        let status = await withCheckedContinuation { (continuation: CheckedContinuation<vmnet_return_t, Never>) in
-            let pending = OSAllocatedUnfairLock<CheckedContinuation<vmnet_return_t, Never>?>(initialState: continuation)
-            let finish: @Sendable (vmnet_return_t) -> Void = { status in
-                pending.withLock { $0.take() }?.resume(returning: status)
-            }
-            interface = vmnet_interface_start_with_network(reference, xpc_dictionary_create(nil, nil, 0), .global()) { status, _ in
-                finish(status)
-            }
-            if interface == nil {
-                finish(.VMNET_FAILURE)
-            }
-        }
-        guard let interface, status == .VMNET_SUCCESS else {
-            throw ContainerizationError(.internalError, message: "failed to keep the host bridge of vmnet network \(subnet) with status \(status)")
-        }
-        hostBridge = interface
     }
 
     private static func getSubnetV4(_ ref: vmnet_network_ref) throws -> CIDRv4 {
