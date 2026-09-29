@@ -262,6 +262,12 @@ public struct VmnetNetwork: Network {
         try allocator.release(id)
     }
 
+    /// Releases the network, so vmnet can reuse its subnet once no virtual machine
+    /// is attached to it. The network can't be used afterwards.
+    public consuming func release() {
+        Unmanaged<AnyObject>.fromOpaque(UnsafeRawPointer(reference)).release()
+    }
+
     private static func getSubnetV4(_ ref: vmnet_network_ref) throws -> CIDRv4 {
         var subnet = in_addr()
         var mask = in_addr()
